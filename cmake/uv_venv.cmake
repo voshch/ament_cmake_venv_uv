@@ -22,12 +22,22 @@ function(uv_venv)
             "${venv_build_dir}"
     )
 
+    set(_cmd
+        "export PYTHONPATH=''"
+        "uv venv ${venv_dir}"
+        ". ${venv_dir}/bin/activate"
+        "uv sync --active --project ${venv_build_dir}"
+    )
+
+    list(JOIN _cmd " && " _cmd)
+
     add_custom_command(
         OUTPUT "${venv_dir}"
         DEPENDS "${venv_build_dir}"
-        COMMAND uv venv "${venv_dir}" && . "${venv_dir}/bin/activate" && uv sync --active --project "${venv_build_dir}"
+        COMMAND sh -c "${_cmd}"
         COMMAND "${venv_dir}/bin/python" -m ensurepip --default-pip
         COMMAND "${venv_dir}/bin/python" -m pip install "${venv_build_dir}"
+        VERBATIM
     )
 
     add_custom_target("${target_venv}" ALL
