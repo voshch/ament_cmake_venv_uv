@@ -24,9 +24,10 @@ function(uv_venv)
 
     set(_cmd
         "export PYTHONPATH=''"
+        "cd ${venv_build_dir}"
         "uv venv ${venv_dir}"
         ". ${venv_dir}/bin/activate"
-        "uv sync --active --project ${venv_build_dir}"
+        "uv pip install ${venv_build_dir}"
     )
 
     list(JOIN _cmd " && " _cmd)
@@ -35,8 +36,6 @@ function(uv_venv)
         OUTPUT "${venv_dir}"
         DEPENDS "${venv_build_dir}"
         COMMAND sh -c "${_cmd}"
-        COMMAND "${venv_dir}/bin/python" -m ensurepip --default-pip
-        COMMAND "${venv_dir}/bin/python" -m pip install "${venv_build_dir}"
         VERBATIM
     )
 
