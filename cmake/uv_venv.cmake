@@ -25,7 +25,7 @@ function(uv_venv)
     set(_cmd
         "export PYTHONPATH=''"
         "cd ${venv_build_dir}"
-        "uv venv ${venv_dir}"
+        "uv venv --clear ${venv_dir}"
         ". ${venv_dir}/bin/activate"
         "uv pip install ${venv_build_dir}"
     )
