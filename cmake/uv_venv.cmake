@@ -17,9 +17,8 @@ function(uv_venv)
     add_custom_command(
         OUTPUT "${venv_build_dir}/${arg_NAME}"
         DEPENDS "${PROJECT_DIRECTORY}/${arg_PROJECTFILE}"
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-            "${PROJECT_DIRECTORY}"
-            "${venv_build_dir}"
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${venv_build_dir}"
+        COMMAND cp -a "${PROJECT_DIRECTORY}/." "${venv_build_dir}/"
     )
 
     set(_stamp "${venv_dir}/.built")
