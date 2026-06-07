@@ -18,8 +18,16 @@ function(uv_venv)
         OUTPUT "${venv_build_dir}/${arg_NAME}"
         DEPENDS "${PROJECT_DIRECTORY}/${arg_PROJECTFILE}"
         COMMAND ${CMAKE_COMMAND} -E make_directory "${venv_build_dir}"
-        COMMAND cp -a "${PROJECT_DIRECTORY}/." "${venv_build_dir}/"
+        COMMAND cp -af "${PROJECT_DIRECTORY}/." "${venv_build_dir}/"
     )
+
+    set(_override_args "")
+    string(REPLACE ":" ";" _override_paths "$ENV{AMENT_CMAKE_VENV_UV_OVERRIDES}")
+    foreach(_path IN LISTS _override_paths)
+        if(_path)
+            string(APPEND _override_args " --override ${_path}")
+        endif()
+    endforeach()
 
     set(_stamp "${venv_dir}/.built")
     set(_cmd
@@ -27,7 +35,7 @@ function(uv_venv)
         "cd ${venv_build_dir}"
         "uv venv --clear ${venv_dir}"
         ". ${venv_dir}/bin/activate"
-        "uv pip install ${venv_build_dir}"
+        "uv pip install${_override_args} ${venv_build_dir}"
         "touch ${_stamp}"
     )
 
