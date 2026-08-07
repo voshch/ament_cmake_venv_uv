@@ -2,7 +2,7 @@ function(uv_venv)
     find_package(ament_cmake_venv REQUIRED)
 
     set(options)
-    set(oneValueArgs DIRECTORY)
+    set(oneValueArgs DIRECTORY PROJECTFILE)
     set(multiValueArgs)
     cmake_parse_arguments(PARSE_ARGV 0 arg
         "${options}" "${oneValueArgs}" "${multiValueArgs}"
@@ -12,13 +12,25 @@ function(uv_venv)
         set(arg_DIRECTORY .)
     endif()
 
+    if(NOT DEFINED arg_PROJECTFILE)
+        set(arg_PROJECTFILE pyproject.toml)
+    endif()
+
     set(PROJECT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/${arg_DIRECTORY}")
-    
+
+    set(_synced "${CMAKE_CURRENT_BINARY_DIR}/venv_build.stamp")
+
+    file(GLOB_RECURSE _project_files CONFIGURE_DEPENDS "${PROJECT_DIRECTORY}/*")
+    list(FILTER _project_files EXCLUDE REGEX "/(\\.git|\\.venv|\\.ruff_cache|__pycache__|[^/]+\\.egg-info)/|\\.pyc$")
+
     add_custom_command(
-        OUTPUT "${venv_build_dir}/${arg_NAME}"
-        DEPENDS "${PROJECT_DIRECTORY}/${arg_PROJECTFILE}"
+        OUTPUT "${_synced}"
+        DEPENDS "${PROJECT_DIRECTORY}/${arg_PROJECTFILE}" ${_project_files}
+        COMMAND ${CMAKE_COMMAND} -E rm -rf "${venv_build_dir}"
         COMMAND ${CMAKE_COMMAND} -E make_directory "${venv_build_dir}"
-        COMMAND cp -af "${PROJECT_DIRECTORY}/." "${venv_build_dir}/"
+        COMMAND cp -a "${PROJECT_DIRECTORY}/." "${venv_build_dir}/"
+        COMMAND ${CMAKE_COMMAND} -E rm -rf "${venv_build_dir}/.git"
+        COMMAND ${CMAKE_COMMAND} -E touch "${_synced}"
     )
 
     set(_override_args "")
@@ -43,7 +55,7 @@ function(uv_venv)
 
     add_custom_command(
         OUTPUT "${_stamp}"
-        DEPENDS "${venv_build_dir}"
+        DEPENDS "${_synced}"
         COMMAND sh -c "${_cmd}"
         VERBATIM
     )
