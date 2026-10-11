@@ -2,7 +2,7 @@ function(uv_venv)
     find_package(ament_cmake_venv REQUIRED)
 
     set(options)
-    set(oneValueArgs DIRECTORY PROJECTFILE)
+    set(oneValueArgs DIRECTORY PROJECTFILE TEST_EXTRA)
     set(multiValueArgs)
     cmake_parse_arguments(PARSE_ARGV 0 arg
         "${options}" "${oneValueArgs}" "${multiValueArgs}"
@@ -41,13 +41,23 @@ function(uv_venv)
         endif()
     endforeach()
 
+    set(_spec "${venv_build_dir}")
+    set(_spec_file "")
+    if(DEFINED arg_TEST_EXTRA)
+        if(BUILD_TESTING)
+            set(_spec "${venv_build_dir}[${arg_TEST_EXTRA}]")
+        endif()
+        set(_spec_file "${CMAKE_CURRENT_BINARY_DIR}/venv_spec.txt")
+        file(CONFIGURE OUTPUT "${_spec_file}" CONTENT "${_spec}\n")
+    endif()
+
     set(_stamp "${venv_dir}/.built")
     set(_cmd
         "export PYTHONPATH=''"
         "cd ${venv_build_dir}"
         "uv venv --clear ${venv_dir}"
         ". ${venv_dir}/bin/activate"
-        "uv pip install${_override_args} ${venv_build_dir}"
+        "uv pip install${_override_args} '${_spec}'"
         "touch ${_stamp}"
     )
 
@@ -55,7 +65,7 @@ function(uv_venv)
 
     add_custom_command(
         OUTPUT "${_stamp}"
-        DEPENDS "${_synced}"
+        DEPENDS "${_synced}" ${_spec_file}
         COMMAND sh -c "${_cmd}"
         VERBATIM
     )
@@ -65,4 +75,32 @@ function(uv_venv)
     )
 
     venv_install()
+endfunction()
+
+function(uv_venv_pytest testname path)
+    set(options)
+    set(oneValueArgs TIMEOUT)
+    set(multiValueArgs)
+    cmake_parse_arguments(PARSE_ARGV 2 arg
+        "${options}" "${oneValueArgs}" "${multiValueArgs}"
+    )
+
+    if(NOT IS_ABSOLUTE "${path}")
+        set(path "${CMAKE_CURRENT_SOURCE_DIR}/${path}")
+    endif()
+
+    if(NOT DEFINED arg_TIMEOUT)
+        set(arg_TIMEOUT 60)
+    endif()
+
+    set(_result "${AMENT_TEST_RESULTS_DIR}/${PROJECT_NAME}/${testname}.xunit.xml")
+    ament_add_test("${testname}"
+        COMMAND ${venv_clean_pythonpath} "${venv_python_bin}" -u -m pytest "${path}"
+            -o "cache_dir=${CMAKE_CURRENT_BINARY_DIR}/uv_venv_pytest/${testname}/.cache"
+            "--junit-xml=${_result}"
+            "--junit-prefix=${PROJECT_NAME}"
+        OUTPUT_FILE "${CMAKE_BINARY_DIR}/uv_venv_pytest/${testname}.txt"
+        RESULT_FILE "${_result}"
+        TIMEOUT ${arg_TIMEOUT}
+    )
 endfunction()
