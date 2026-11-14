@@ -1,9 +1,10 @@
 function(uv_venv)
     find_package(ament_cmake_venv REQUIRED)
+    find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
     set(options)
     set(oneValueArgs DIRECTORY PROJECTFILE TEST_EXTRA)
-    set(multiValueArgs)
+    set(multiValueArgs POST_INSTALL)
     cmake_parse_arguments(PARSE_ARGV 0 arg
         "${options}" "${oneValueArgs}" "${multiValueArgs}"
     )
@@ -17,61 +18,21 @@ function(uv_venv)
     endif()
 
     set(PROJECT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/${arg_DIRECTORY}")
-
-    set(_synced "${CMAKE_CURRENT_BINARY_DIR}/venv_build.stamp")
-
-    file(GLOB_RECURSE _project_files CONFIGURE_DEPENDS "${PROJECT_DIRECTORY}/*")
-    list(FILTER _project_files EXCLUDE REGEX "/(\\.git|\\.venv|\\.ruff_cache|__pycache__|[^/]+\\.egg-info)/|\\.pyc$")
-
-    add_custom_command(
-        OUTPUT "${_synced}"
-        DEPENDS "${PROJECT_DIRECTORY}/${arg_PROJECTFILE}" ${_project_files}
-        COMMAND ${CMAKE_COMMAND} -E rm -rf "${venv_build_dir}"
-        COMMAND ${CMAKE_COMMAND} -E make_directory "${venv_build_dir}"
-        COMMAND cp -a "${PROJECT_DIRECTORY}/." "${venv_build_dir}/"
-        COMMAND ${CMAKE_COMMAND} -E rm -rf "${venv_build_dir}/.git"
-        COMMAND ${CMAKE_COMMAND} -E touch "${_synced}"
-    )
-
-    set(_override_args "")
-    string(REPLACE ":" ";" _override_paths "$ENV{AMENT_CMAKE_VENV_UV_OVERRIDES}")
-    foreach(_path IN LISTS _override_paths)
-        if(_path)
-            string(APPEND _override_args " --override ${_path}")
-        endif()
-    endforeach()
-
-    set(_spec "${venv_build_dir}")
-    set(_spec_file "")
-    if(DEFINED arg_TEST_EXTRA)
-        if(BUILD_TESTING)
-            set(_spec "${venv_build_dir}[${arg_TEST_EXTRA}]")
-        endif()
-        set(_spec_file "${CMAKE_CURRENT_BINARY_DIR}/venv_spec.txt")
-        file(CONFIGURE OUTPUT "${_spec_file}" CONTENT "${_spec}\n")
+    if(NOT EXISTS "${PROJECT_DIRECTORY}/${arg_PROJECTFILE}")
+        message(FATAL_ERROR "uv_venv: no ${arg_PROJECTFILE} in ${PROJECT_DIRECTORY}")
     endif()
 
-    set(_stamp "${venv_dir}/.built")
-    set(_cmd
-        "export PYTHONPATH=''"
-        "cd ${venv_build_dir}"
-        "uv venv --clear ${venv_dir}"
-        ". ${venv_dir}/bin/activate"
-        "uv pip install${_override_args} '${_spec}'"
-        "touch ${_stamp}"
-    )
-
-    list(JOIN _cmd " && " _cmd)
-
-    add_custom_command(
-        OUTPUT "${_stamp}"
-        DEPENDS "${_synced}" ${_spec_file}
-        COMMAND sh -c "${_cmd}"
-        VERBATIM
-    )
+    set(_args "${PROJECT_DIRECTORY}" "${venv_build_dir}" "${venv_dir}")
+    if(DEFINED arg_TEST_EXTRA AND BUILD_TESTING)
+        list(APPEND _args --extra "${arg_TEST_EXTRA}")
+    endif()
+    foreach(_post IN LISTS arg_POST_INSTALL)
+        list(APPEND _args --post-install "${_post}")
+    endforeach()
 
     add_custom_target("${target_venv}" ALL
-        DEPENDS "${_stamp}"
+        COMMAND "${Python3_EXECUTABLE}" "${ament_cmake_venv_uv_DIR}/uv_venv_store.py" ${_args}
+        VERBATIM
     )
 
     venv_install()
